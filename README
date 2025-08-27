@@ -1,1 +1,12 @@
 sfsdf sgs fg sdg sd gsg es e d ola
+
+Remove-Item -Recurse -Force node_modules
+Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
+Remove-Item -Force yarn.lock -ErrorAction SilentlyContinue
+Remove-Item -Force pnpm-lock.yaml -ErrorAction SilentlyContinue
+
+npm i react@18.3.1 react-dom@18.3.1 react-router-dom@6
+npm i -D vite@5 @vitejs/plugin-react@^4 typescript@^5 @types/react@18 @types/react-dom@18
+
+npm ls react react-dom react-router-dom
+
