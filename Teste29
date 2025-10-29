@@ -887,3 +887,28 @@ export default async function CardPage({ params }: { params: { id: string } }) {
     </main>
   );
 }
+
+import type { ApiResponse } from "@/types/pokemon";
+
+const BASE = "https://api.pokemontcg.io/v2/cards";
+
+export async function fetchCards(opts: { q?: string; page?: number; pageSize?: number } = {}) {
+  const { q = "", page = 1, pageSize = 15 } = opts;
+  const params = new URLSearchParams();
+  if (q) params.set("q", `name:${q}`);
+  params.set("orderBy", "number,name");
+  params.set("page", String(page));
+  params.set("pageSize", String(Math.min(pageSize, 15)));
+
+  const url = `${BASE}?${params.toString()}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("Falha ao buscar cartas");
+  return (await res.json()) as ApiResponse;
+}
+
+export async function fetchCardById(id: string) {
+  // 👇 use a API oficial direto
+  const res = await fetch(`https://api.pokemontcg.io/v2/cards/${id}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Carta não encontrada");
+  return (await res.json()) as { data: import("@/types/pokemon").PokemonCard };
+}
