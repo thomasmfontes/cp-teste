@@ -1,0 +1,466 @@
+Beleza, Fulano. Passo a passo, direto ao ponto. 
+
+1) Crie o projeto (App Router)
+
+npx create-next-app@latest minhas-cartas --typescript --eslint
+cd minhas-cartas
+# (opcional) Tailwind
+npx tailwindcss init -p
+
+No package.json, mantenha Next 13+ (App Router). Garanta que usará app/ (não pages/).
+
+2) .gitignore e env
+
+Confirme que node_modules, .next, *.env.local etc. estão no .gitignore.
+
+Crie .env.local:
+
+
+AUTH_PASSWORD=coloque-uma-senha-forte
+
+3) next.config.ts (liberar imagens das cartas)
+
+Substitua o conteúdo para permitir imagens do domínio do TCG:
+
+// next.config.ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "images.pokemontcg.io" }
+    ]
+  }
+};
+export default nextConfig;
+
+4) Tipagens
+
+Crie src/types/pokemon.ts (simplificada p/ o que o checkpoint exige):
+
+export interface PokemonCard {
+  id: string;
+  name: string;
+  hp?: string;
+  types?: string[];
+  nationalPokedexNumbers?: number[];
+  images: { small: string; large: string };
+}
+
+export interface ApiResponse {
+  data: PokemonCard[];
+  page?: number;
+  pageSize?: number;
+  count?: number;
+  totalCount?: number;
+}
+
+5) Autenticação (senha fixa em variável de ambiente)
+
+5.1 Rota POST /api/auth (valida senha e seta cookie)
+
+Crie src/app/api/auth/route.ts:
+
+import { NextResponse } from "next/server";
+
+export async function POST(req: Request) {
+  const { password } = await req.json();
+  if (password && process.env.AUTH_PASSWORD && password === process.env.AUTH_PASSWORD) {
+    const res = NextResponse.json({ ok: true });
+    res.cookies.set("auth", "ok", {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7, // 7 dias
+    });
+    return res;
+  }
+  return NextResponse.json({ ok: false, error: "Senha inválida" }, { status: 401 });
+}
+
+5.2 Rota POST /api/logout (limpa cookie)
+
+src/app/api/logout/route.ts:
+
+import { NextResponse } from "next/server";
+
+export async function POST() {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set("auth", "", { httpOnly: true, path: "/", maxAge: 0 });
+  return res;
+}
+
+5.3 Middleware para proteger tudo exceto /login
+
+Crie src/middleware.ts:
+
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  if (pathname.startsWith("/login") || pathname.startsWith("/_next") || pathname === "/favicon.ico") {
+    return NextResponse.next();
+  }
+  const auth = req.cookies.get("auth")?.value;
+  if (!auth) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};
+
+5.4 Página de Login
+
+src/app/login/page.tsx:
+
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+export default function LoginPage() {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) {
+      router.push("/");
+    } else {
+      const j = await res.json();
+      setError(j.error ?? "Falha no login");
+    }
+  };
+
+  return (
+    <main className="min-h-dvh flex items-center justify-center p-6">
+      <form onSubmit={onSubmit} className="w-full max-w-sm space-y-3">
+        <h1 className="text-xl font-semibold">Login</h1>
+        <input
+          type="password"
+          placeholder="Senha"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          className="w-full border rounded p-2"
+          required
+        />
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+        <button className="w-full border rounded p-2" type="submit">Entrar</button>
+      </form>
+    </main>
+  );
+}
+
+6) Layout com Header (logout + contagem de favoritos)
+
+src/app/layout.tsx:
+
+import "./globals.css";
+import Link from "next/link";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="pt-BR">
+      <body>
+        <header className="border-b">
+          <div className="max-w-5xl mx-auto flex items-center justify-between p-4">
+            <Link href="/" className="font-semibold">Minhas cartas favoritas</Link>
+            <div className="flex items-center gap-3">
+              <Link href="/">Buscar</Link>
+              <button
+                onClick={async () => {
+                  // limpa favoritos localmente
+                  if (typeof window !== "undefined") localStorage.removeItem("favorites");
+                  // limpa cookie no server
+                  await fetch("/api/logout", { method: "POST" });
+                  // redireciona
+                  window.location.href = "/login";
+                }}
+                className="border rounded px-3 py-1"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </header>
+        {children}
+        <footer className="border-t mt-10">
+          <div className="max-w-5xl mx-auto p-4 text-sm">
+            Coloque aqui NOME COMPLETO e RA dos 3 integrantes.
+          </div>
+        </footer>
+      </body>
+    </html>
+  );
+}
+
+7) Utilitário de busca na API (máx. 15)
+
+src/lib/pokemon.ts:
+
+import type { ApiResponse } from "@/types/pokemon";
+
+const BASE = "https://api.pokemontcg.io/v2/cards";
+
+export async function fetchCards(opts: { q?: string; page?: number; pageSize?: number } = {}) {
+  const { q = "", page = 1, pageSize = 15 } = opts;
+  const params = new URLSearchParams();
+  if (q) params.set("q", `name:${q}`);
+  params.set("orderBy", "number,name");
+  params.set("page", String(page));
+  params.set("pageSize", String(Math.min(pageSize, 15)));
+  const url = `${BASE}?${params.toString()}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("Falha ao buscar cartas");
+  return (await res.json()) as ApiResponse;
+}
+
+export async function fetchCardById(id: string) {
+  const res = await fetch(`https://api.pokemontcg.io/v2/cards/${id}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Carta não encontrada");
+  return (await res.json()) as { data: import("@/types/pokemon").PokemonCard };
+}
+
+8) Página principal (lista pré-carregada + busca)
+
+src/app/page.tsx (Server + Client para busca):
+
+import Cards from "./ui/Cards";
+
+export default function HomePage() {
+  return (
+    <main className="max-w-5xl mx-auto p-4">
+      <h1 className="text-xl font-semibold mb-4">Buscar cartas</h1>
+      <Cards />
+    </main>
+  );
+}
+
+src/app/ui/Cards.tsx:
+
+"use client";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import type { PokemonCard } from "@/types/pokemon";
+import { fetchCards } from "@/lib/pokemon";
+
+const FAV_KEY = "favorites";
+
+export default function Cards() {
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [cards, setCards] = useState<PokemonCard[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  // carrega favoritos do localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem(FAV_KEY);
+      setFavorites(raw ? JSON.parse(raw) : []);
+    }
+  }, []);
+
+  const isFav = (id: string) => favorites.includes(id);
+
+  const toggleFav = (id: string) => {
+    setFavorites(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem(FAV_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // pré-carrega 15 cartas
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await fetchCards({ pageSize: 15 });
+        setCards(r.data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const onSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const r = await fetchCards({ q, pageSize: 15 });
+      setCards(r.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const list = useMemo(() => cards.slice(0, 15), [cards]);
+
+  return (
+    <div className="space-y-4">
+      <form onSubmit={onSearch} className="flex gap-2">
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Ex.: charizard"
+          className="border rounded p-2 flex-1"
+        />
+        <button className="border rounded px-4" type="submit">Buscar</button>
+      </form>
+
+      {loading ? <p>Carregando…</p> : null}
+
+      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {list.map(card => (
+          <li key={card.id} className="border rounded p-3">
+            <div className="relative w-full aspect-[3/4] mb-3">
+              <Image
+                src={card.images.large}
+                alt={card.name}
+                fill
+                className="object-contain"
+                sizes="(max-width:768px) 100vw, 33vw"
+                priority
+              />
+            </div>
+            <h2 className="font-semibold">{card.name}</h2>
+            <p className="text-sm">
+              Nº Dex: {card.nationalPokedexNumbers?.[0] ?? "-"} |
+              HP: {card.hp ?? "-"}
+            </p>
+            <p className="text-sm">Tipos: {card.types?.join(", ") ?? "-"}</p>
+
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => toggleFav(card.id)}
+                className="border rounded px-3 py-1"
+              >
+                {isFav(card.id) ? "Remover favorito" : "Favoritar"}
+              </button>
+              <Link href={`/card/${card.id}`} className="border rounded px-3 py-1">
+                Detalhes
+              </Link>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+9) Página de detalhes (EXTRA) com favoritar/remover
+
+src/app/card/[id]/page.tsx:
+
+import Image from "next/image";
+import { fetchCardById } from "@/lib/pokemon";
+import CardFavButton from "./toggle-fav";
+
+export default async function CardPage({ params }: { params: { id: string } }) {
+  const { data: card } = await fetchCardById(params.id);
+
+  return (
+    <main className="max-w-3xl mx-auto p-4">
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="relative w-full aspect-[3/4]">
+          <Image src={card.images.large} alt={card.name} fill className="object-contain" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold">{card.name}</h1>
+          <p>HP: {card.hp ?? "-"}</p>
+          <p>Tipos: {card.types?.join(", ") ?? "-"}</p>
+          <p>Nº Dex: {card.nationalPokedexNumbers?.[0] ?? "-"}</p>
+
+          {/* Campos extras livres */}
+          <pre className="mt-4 text-sm bg-gray-50 p-3 rounded overflow-auto">
+{JSON.stringify(card, null, 2)}
+          </pre>
+
+          <div className="mt-4">
+            <CardFavButton id={card.id} />
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+src/app/card/[id]/toggle-fav.tsx:
+
+"use client";
+import { useEffect, useState } from "react";
+const FAV_KEY = "favorites";
+
+export default function CardFavButton({ id }: { id: string }) {
+  const [fav, setFav] = useState(false);
+  useEffect(() => {
+    const arr: string[] = JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
+    setFav(arr.includes(id));
+  }, [id]);
+
+  const toggle = () => {
+    const arr: string[] = JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
+    const next = arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id];
+    localStorage.setItem(FAV_KEY, JSON.stringify(next));
+    setFav(next.includes(id));
+  };
+
+  return (
+    <button onClick={toggle} className="border rounded px-4 py-1">
+      {fav ? "Remover favorito" : "Favoritar"}
+    </button>
+  );
+}
+
+10) Requisitos funcionais checados
+
+Login com senha fixa em env, rota de autenticação e persistência via cookie (permanece logado ao atualizar).
+
+Logout no topo que também limpa favoritos.
+
+Tela de busca com pré-carregamento e limite de 15 (sempre cortar no client também).
+
+Favoritos no localStorage e mantidos após refresh.
+
+App Router usado.
+
+Imagens liberadas no next.config.ts.
+
+Página extra de detalhes com favoritar/desfavoritar (opcional para +1,0).
+
+
+11) README e Deploy (Vercel)
+
+Suba no Git (link no README).
+
+Vercel → Import Project → Configure env AUTH_PASSWORD.
+
+Deixe o link público da Vercel no README.
+
+Cheque build e se as imagens carregam (por causa do next.config.ts).
+
+
+12) Scripts úteis
+
+npm run dev
+npm run build
+npm start
+
+Pronto. Se quiser, te mando esse boilerplate num zip ou ajusto para Tailwind puro.
