@@ -677,3 +677,54 @@ button {
 button:hover {
   background: #ccc;
 }
+
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // ✅ liberar rotas públicas
+  if (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/api") ||          // <--- ADICIONE ISTO
+    pathname.startsWith("/_next") ||
+    pathname === "/favicon.ico"
+  ) {
+    return NextResponse.next();
+  }
+
+  const auth = req.cookies.get("auth")?.value;
+  if (!auth) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+// Pode manter seu matcher atual ou simplificar:
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};
+
+import { NextResponse } from "next/server";
+
+export async function POST(req: Request) {
+  const { password } = await req.json();
+
+  if (password && process.env.AUTH_PASSWORD && password === process.env.AUTH_PASSWORD) {
+    const res = NextResponse.json({ ok: true });
+    res.cookies.set("auth", "ok", {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+      secure: process.env.NODE_ENV === "production",
+    });
+    return res;
+  }
+
+  return NextResponse.json({ ok: false, error: "Senha inválida" }, { status: 401 });
+}
