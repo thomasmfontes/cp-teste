@@ -464,3 +464,90 @@ npm run build
 npm start
 
 Pronto. Se quiser, te mando esse boilerplate num zip ou ajusto para Tailwind puro.
+
+[{
+	"resource": "/D:/CP6/minhas-cartas/app/lib/pokemon.ts",
+	"owner": "typescript",
+	"code": "2307",
+	"severity": 8,
+	"message": "Cannot find module '@/types/pokemon' or its corresponding type declarations.",
+	"source": "ts",
+	"startLineNumber": 1,
+	"startColumn": 34,
+	"endLineNumber": 1,
+	"endColumn": 51
+},{
+	"resource": "/D:/CP6/minhas-cartas/app/lib/pokemon.ts",
+	"owner": "typescript",
+	"code": "2307",
+	"severity": 8,
+	"message": "Cannot find module '@/types/pokemon' or its corresponding type declarations.",
+	"source": "ts",
+	"startLineNumber": 21,
+	"startColumn": 47,
+	"endLineNumber": 21,
+	"endColumn": 64
+}]
+
+[{
+	"resource": "/D:/CP6/minhas-cartas/app/app/ui/Cards.tsx",
+	"owner": "typescript",
+	"code": "2307",
+	"severity": 8,
+	"message": "Cannot find module '@/types/pokemon' or its corresponding type declarations.",
+	"source": "ts",
+	"startLineNumber": 5,
+	"startColumn": 34,
+	"endLineNumber": 5,
+	"endColumn": 51
+},{
+	"resource": "/D:/CP6/minhas-cartas/app/app/ui/Cards.tsx",
+	"owner": "typescript",
+	"code": "2307",
+	"severity": 8,
+	"message": "Cannot find module '@/lib/pokemon' or its corresponding type declarations.",
+	"source": "ts",
+	"startLineNumber": 6,
+	"startColumn": 28,
+	"endLineNumber": 6,
+	"endColumn": 43
+}]
+
+[{
+	"resource": "/D:/CP6/minhas-cartas/app/app/page.tsx",
+	"owner": "typescript",
+	"code": "2307",
+	"severity": 8,
+	"message": "Cannot find module './ui/Cards' or its corresponding type declarations.",
+	"source": "ts",
+	"startLineNumber": 1,
+	"startColumn": 19,
+	"endLineNumber": 1,
+	"endColumn": 31
+}]
+
+[{
+	"resource": "/D:/CP6/minhas-cartas/app/app/card/[id]/toggle-fav.tsx",
+	"owner": "eslint",
+	"code": "react-hooks/set-state-in-effect",
+	"severity": 8,
+	"message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\CP6\\minhas-cartas\\app\\app\\card\\[id]\\toggle-fav.tsx:9:5\n   7 |   useEffect(() => {\n   8 |     const arr: string[] = JSON.parse(localStorage.getItem(FAV_KEY) || \"[]\");\n>  9 |     setFav(arr.includes(id));\n     |     ^^^^^^ Avoid calling setState() directly within an effect\n  10 |   }, [id]);\n  11 |\n  12 |   const toggle = () => {",
+	"source": "eslint",
+	"startLineNumber": 9,
+	"startColumn": 5,
+	"endLineNumber": 9,
+	"endColumn": 11
+}]
+
+[{
+	"resource": "/D:/CP6/minhas-cartas/app/app/card/[id]/page.tsx",
+	"owner": "typescript",
+	"code": "2307",
+	"severity": 8,
+	"message": "Cannot find module '@/lib/pokemon' or its corresponding type declarations.",
+	"source": "ts",
+	"startLineNumber": 2,
+	"startColumn": 31,
+	"endLineNumber": 2,
+	"endColumn": 46
+}]
