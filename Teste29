@@ -728,3 +728,162 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: false, error: "Senha inválida" }, { status: 401 });
 }
+
+"use client";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import type { PokemonCard } from "@/types/pokemon";
+import { fetchCards } from "@/lib/pokemon";
+
+const FAV_KEY = "favorites";
+
+export default function Cards() {
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [cards, setCards] = useState<PokemonCard[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem(FAV_KEY);
+      setFavorites(raw ? JSON.parse(raw) : []);
+    }
+  }, []);
+
+  const isFav = (id: string) => favorites.includes(id);
+  const toggleFav = (id: string) => {
+    setFavorites(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem(FAV_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await fetchCards({ pageSize: 15 });
+        setCards(r.data);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const onSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const r = await fetchCards({ q, pageSize: 15 });
+      setCards(r.data);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const list = useMemo(() => cards.slice(0, 15), [cards]);
+
+  return (
+    <div>
+      <form onSubmit={onSearch} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Ex.: charizard"
+          style={{ flex: 1, padding: "8px", borderRadius: 4, border: "1px solid #666", background: "#222", color: "#eee" }}
+        />
+        <button type="submit">Buscar</button>
+      </form>
+
+      {loading && <p>Carregando…</p>}
+
+      <ul style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+        gap: 16,
+        listStyle: "none",
+        padding: 0,
+        margin: 0
+      }}>
+        {list.map(card => (
+          <li key={card.id} style={{ border: "1px solid #333", borderRadius: 6, padding: 12 }}>
+            <div className="img-wrap">{/* 👈 wrapper com position:relative e altura */}
+              <Image
+                src={card.images.large}
+                alt={card.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 33vw"   /* 👈 evita warning */
+                style={{ objectFit: "contain" }}        /* 👈 imagem contida */
+                priority
+              />
+            </div>
+
+            <h2 style={{ margin: "0 0 4px 0" }}>{card.name}</h2>
+            <p style={{ margin: 0, fontSize: 14 }}>
+              Nº Dex: {card.nationalPokedexNumbers?.[0] ?? "-"} | HP: {card.hp ?? "-"}
+            </p>
+            <p style={{ margin: "4px 0 12px 0", fontSize: 14 }}>
+              Tipos: {card.types?.join(", ") ?? "-"}
+            </p>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => toggleFav(card.id)}>
+                {isFav(card.id) ? "Remover favorito" : "Favoritar"}
+              </button>
+              <Link href={`/card/${card.id}`}><button>Detalhes</button></Link>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+import Image from "next/image";
+import { fetchCardById } from "@/lib/pokemon";
+import CardFavButton from "./toggle-fav";
+
+export default async function CardPage({ params }: { params: { id: string } }) {
+  const { data: card } = await fetchCardById(params.id);
+
+  return (
+    <main>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
+        <div className="img-wrap">
+          <Image
+            src={card.images.large}
+            alt={card.name}
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            style={{ objectFit: "contain" }}
+            priority
+          />
+        </div>
+
+        <div>
+          <h1 style={{ fontSize: 24, marginTop: 0 }}>{card.name}</h1>
+          <p>HP: {card.hp ?? "-"}</p>
+          <p>Tipos: {card.types?.join(", ") ?? "-"}</p>
+          <p>Nº Dex: {card.nationalPokedexNumbers?.[0] ?? "-"}</p>
+
+          <div style={{ marginTop: 12 }}>
+            <CardFavButton id={card.id} />
+          </div>
+
+          <pre style={{
+            marginTop: 16,
+            fontSize: 12,
+            background: "#1d1d1d",
+            padding: 12,
+            borderRadius: 6,
+            overflow: "auto"
+          }}>
+{JSON.stringify(card, null, 2)}
+          </pre>
+        </div>
+      </div>
+    </main>
+  );
+}
